@@ -1,0 +1,16 @@
+{
+  "name": "NodeServices",
+  "version": "1.0.1",
+  "private": true,
+  "dependencies": {
+    "appdynamics": "^20",
+    "domain": "0.0.1",
+    "http": "0.0.0",
+    "httpdispatcher": "^2.1.0",
+    "lodash": "^3.10.1",
+    "mongodb": "^2.2.30",
+    "path": "^0.12.7",
+    "uuid": "^3.1.0",
+    "winston": "^2.3.1"
+  }
+}

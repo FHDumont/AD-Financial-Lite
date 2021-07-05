@@ -1,0 +1,347 @@
+version: '2'
+
+services:
+
+  agent-repo:
+    image: agent-repo:latest
+    container_name: agent-repo
+    volumes:
+      - java-agent-volume:/sharedFiles/AppServerAgent
+
+  machine-agent:
+    container_name: machine-agent
+    hostname: machine-agent
+    image: appdynamics/machine-agent-analytics:latest
+    privileged: true
+    env_file: controller.env
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /:/hostroot:ro
+    expose:
+      - 9090
+    depends_on:
+      - loanServices
+    volumes_from:
+      - loanServices:ro
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: '1m'
+        max-file: '5'    
+
+  browser-load:
+    image: fin-load:latest
+    container_name: browser-load
+    env_file: controller.env
+    environment:
+      - ENABLE_BROWSER_LOAD=1
+    logging:
+      <<: *logging
+
+  approval-load:
+    image: fin-load:latest
+    container_name: approval-load
+    env_file: controller.env
+    environment:
+      - ENABLE_APPROVAL_LOAD=1
+    logging:
+      <<: *logging
+
+  policy-load:
+    image: fin-load:latest
+    container_name: policy-load
+    env_file: controller.env
+    environment:
+      - ENABLE_POLICY_LOAD=1
+    logging:
+      <<: *logging
+
+  mongo-policies:
+    image: fin-mongo-db:latest
+    container_name: mongo-policies
+    hostname: mongo-policies
+    env_file: controller.env
+    expose:
+      - "27017"
+
+  policyServices:
+    image: fin-java-services:latest
+    hostname: policyServices
+    container_name: policyServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=PolicyServices
+    expose:
+      - 8080
+    depends_on:
+      - mongo-policies
+      - agent-repo
+    links:
+      - mongo-policies
+    volumes_from:
+      - agent-repo:ro
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+
+  remote-services:
+    image: fin-java-services:latest
+    hostname: remote-services
+    container_name: remote-services
+    env_file: controller.env
+    environment:
+      - DISABLE_AGENT=1
+    expose:
+      - 8080
+    depends_on:
+      - mongo-loans
+    links:
+      - mongo-loans
+    logging:
+      <<: *logging
+
+  lb:
+    image: fin-haproxy:latest
+    container_name: web-lb
+    ports:
+      - 80:80
+      - 9000:9000
+    links:
+      - webFrontEnd-0
+      - webFrontEnd-1
+      - webFrontEnd-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging:
+      <<: *logging
+
+  webFrontEnd-0:
+    image: fin-java-services:latest
+    hostname: webFrontEnd
+    env_file: controller.env
+    environment:
+      - TIER_NAME=WebFrontEnd
+      - NODE_NUMBER=0
+    expose:
+      - 8080
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  webFrontEnd-1:
+    image: fin-java-services:latest
+    hostname: webFrontEnd
+    env_file: controller.env
+    environment:
+      - TIER_NAME=WebFrontEnd
+      - NODE_NUMBER=1
+    expose:
+      - 8080
+    cap_add:
+      - ALL
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  webFrontEnd-2:
+    image: fin-java-services:latest
+    hostname: webFrontEnd
+    env_file: controller.env
+    environment:
+      - TIER_NAME=WebFrontEnd
+      - NODE_NUMBER=2
+    expose:
+      - 8080
+    volumes_from:
+      - agent-repo:ro
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo 
+
+  mongo-sessions:
+    image: fin-mongo-db:latest
+    container_name: mongo-sessions
+    hostname: mongo-sessions
+    env_file: controller.env
+    expose:
+      - "27017"
+    logging:
+      <<: *logging
+
+  mongo-loans:
+    image: fin-mongo-db:latest
+    container_name: mongo-loans
+    hostname: mongo-loans
+    env_file: controller.env
+    expose:
+      - "27017"
+    logging:
+      <<: *logging
+
+  quoteServices:
+    image: fin-java-services:latest
+    hostname: quoteServices
+    container_name: quoteServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=QuoteServices
+    expose:
+      - 8080
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  stockInfoServices:
+    image: fin-java-services:latest
+    hostname: stockInfoServices
+    container_name: stockInfoServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=StockInfoServices
+    expose:
+      - 8080
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  orderProcessing:
+    image: fin-java-services:latest
+    hostname: orderProcessing
+    container_name: orderProcessing
+    env_file: controller.env
+    environment:
+      - TIER_NAME=OrderProcessing
+    expose:
+      - 8080
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  balanceServices:
+    image: fin-java-services:latest
+    hostname: balanceServices
+    container_name: balanceServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=BalanceServices
+      - DISABLE_THREAD_CONTENTION=1
+    expose:
+      - 8080
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  wireServices:
+    image: fin-java-services:latest
+    hostname: wireServices
+    container_name: wireServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=WireServices
+    expose:
+      - 8080
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  accountManagement:
+    image: fin-java-services:latest
+    hostname: accountManagement
+    container_name: accountManagement
+    env_file: controller.env
+    environment:
+      - TIER_NAME=AccountManagement
+      - NODE_NUMBER=0
+      - DISABLE_THREAD_CONTENTION=1
+    expose:
+      - 8080/tcp
+    logging:
+      <<: *logging
+    volumes:
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    depends_on:
+      - agent-repo
+
+  sessionTracking:
+    image: fin-nodejs-services:latest
+    hostname: sessionTracking
+    container_name: sessionTracking
+    env_file: controller.env
+    environment:
+      - TIER_NAME=SessionTracking
+      - PORT=8003
+    ports:
+      - 8003
+    depends_on:
+      - mongo-sessions
+    links:
+      - mongo-sessions
+    logging:
+      <<: *logging
+
+  loanServices:
+    image: fin-java-services:latest
+    hostname: loanServices
+    container_name: loanServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=LoanServices
+    expose:
+      - 8080
+    depends_on:
+      - mongo-loans
+      - agent-repo
+    links:
+      - mongo-loans
+    volumes:
+      - /loanLogs
+      - java-agent-volume:/opt/appdynamics/AppServerAgent
+    logging:
+      <<: *logging
+
+
+  authenticationServices:
+    image: fin-nodejs-services:latest
+    hostname: authenticationServices
+    container_name: authenticationServices
+    env_file: controller.env
+    environment:
+      - TIER_NAME=AuthenticationServices
+      - PORT=8005
+    ports:
+      - 8005
+    depends_on:
+      - mongo-sessions
+    links:
+      - mongo-sessions
+    logging:
+      <<: *logging
+
+volumes:
+  java-agent-volume:

@@ -1,0 +1,4 @@
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 */4 * * * IMPACTED_TIER=QuoteServices RESOURCE_HOG=Memory /src/run-load.sh >> /logs/memory_hog.log
+0 2,6,10,14,18,22 * * * IMPACTED_TIER=StockInfoServices RESOURCE_HOG=CPU /src/run-load.sh >> /logs/cpu_hog.log
